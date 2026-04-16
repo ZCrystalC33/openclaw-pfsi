@@ -2,15 +2,22 @@
 """
 FTS5 Installer Script
 Installs FTS5 skill and sets up cron hooks for automatic indexing
+
+Handles existing Self-Improving installations gracefully:
+- If ~/self-improving/ exists: offer to use existing location
+- If no existing installation: use merged location in FTS5 repo
 """
 
 import os
 import sys
 import subprocess
+from pathlib import Path
 
 FTS5_DIR = os.path.expanduser("~/.openclaw/skills/fts5")
 OPENCLAW_DIR = os.path.expanduser("~/.openclaw")
 CRON_HOOK = os.path.expanduser("~/.openclaw/scripts/fts5-indexer.sh")
+ORIGINAL_SELF_IMPROVING = os.path.expanduser("~/self-improving")
+MERGED_SELF_IMPROVING = os.path.join(FTS5_DIR, "self_improving")
 
 def print_step(msg):
     print(f"\n📦 {msg}")
@@ -93,6 +100,71 @@ def add_to_cron():
 def print_info(msg):
     print(f"   ℹ️  {msg}")
 
+def check_existing_self_improving():
+    """Check if Self-Improving is already installed."""
+    return os.path.exists(ORIGINAL_SELF_IMPROVING)
+
+def setup_self_improving_integration():
+    """
+    Handle Self-Improving integration.
+    Priority: existing ~/self-improving/ > merged location
+    """
+    print_step("Checking Self-Improving integration...")
+    
+    has_existing = check_existing_self_improving()
+    has_merged = os.path.exists(os.path.join(MERGED_SELF_IMPROVING, "memory.md"))
+    
+    if has_existing:
+        print_success(f"Found existing Self-Improving: {ORIGINAL_SELF_IMPROVING}")
+        print_info("Scripts will auto-detect and use existing installation")
+        print_info("Your learning data is preserved and will continue growing")
+        
+        # Offer to update cron to use new scripts
+        print("\n   Would you like to update your cron to use the new scripts from FTS5?")
+        print("   (The new scripts have auto-detection and work with both locations)")
+        response = input("   Update cron to FTS5 scripts? [y/N]: ").strip().lower()
+        
+        if response == 'y':
+            setup_exchange_cron(use_fts5_scripts=True)
+        else:
+            print_info("Keeping existing cron configuration")
+            
+    elif has_merged:
+        print_success(f"Using merged Self-Improving: {MERGED_SELF_IMPROVING}")
+        setup_exchange_cron(use_fts5_scripts=True)
+        
+    else:
+        print_info("No existing Self-Improving found")
+        print_info("Self-Improving is embedded in FTS5 repo and ready to use")
+
+def setup_exchange_cron(use_fts5_scripts=False):
+    """Setup cron for Self-Improving exchange engine."""
+    if use_fts5_scripts:
+        script_path = os.path.join(MERGED_SELF_IMPROVING, "scripts", "exchange-cron.sh")
+    else:
+        script_path = os.path.join(ORIGINAL_SELF_IMPROVING, "scripts", "exchange-cron.sh")
+    
+    if not os.path.exists(script_path):
+        return
+    
+    cron_entry = f"0 3 * * * {script_path}"
+    
+    try:
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+        current_cron = result.stdout if result.returncode == 0 else ""
+        
+        if 'exchange-cron.sh' in current_cron:
+            print_success("Exchange cron already configured")
+            return
+        
+        new_cron = current_cron.strip() + '\n' + cron_entry + '\n'
+        subprocess.run(['crontab', '-'], input=new_cron, text=True)
+        print_success("Exchange cron configured (3 AM daily)")
+        
+    except Exception as e:
+        print_info(f"Exchange cron setup failed: {e}")
+        print_info(f"Manual: {cron_entry}")
+
 def main():
     print("""
 ╔══════════════════════════════════════════════════════════════╗
@@ -122,6 +194,9 @@ def main():
     
     # Create cron hook
     create_cron_hook()
+    
+    # Setup Self-Improving integration
+    setup_self_improving_integration()
     
     # Setup cron (requires sudo for system-wide)
     print("\n⚠️  Cron setup requires sudo for system-wide installation")
@@ -174,10 +249,13 @@ def main():
    English: ~/.openclaw/skills/fts5/README_EN.md
    中文:   ~/.openclaw/skills/fts5/README_ZH.md
 
-⚙️  Cron Hook:
-   /home/snow/.openclaw/scripts/fts5-indexer.sh (created)
-   Auto-run every 5 minutes for incremental indexing
+⚙️  Cron Hooks:
+   FTS5 Indexer: /home/snow/.openclaw/scripts/fts5-indexer.sh (every 5 min)
+   Self-Improving Exchange: ~/.openclaw/skills/fts5/self_improving/scripts/exchange-cron.sh (3 AM daily)
 
+🧠 Self-Improving:
+   Existing installations are automatically detected and preserved
+   Your learning data will continue to grow in the original location
 """)
 
 if __name__ == "__main__":
