@@ -1,46 +1,50 @@
 # OpenClaw PFSI
 
-> 🤖 Proactive Full-text Self-improving Integration — AI 助理的記憶引擎。
-> 
-> 🤖 Make your AI assistant proactive, contextual, and self-improving.
+> ⚡ **Proactive Full-text Self-improving Integration** — AI 助理的記憶引擎。
+>
+> ⚡ Make your AI assistant proactive, contextual, and self-improving.
 
 [![授權：MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![版本](https://img.shields.io/badge/Version-1.5.0-green.svg)](CHANGELOG.md)
+[![版本](https://img.shields.io/badge/Version-2.0.0-green.svg)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
 
 ---
 
-## 📌 語言切換 | Language Switch
+## PFSI 架構 | Architecture
 
-- [中文說明](#-功能特色)（本頁）
-- [English Documentation](#--features)（下方）
+```
+用戶訊息
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Proactivity ──── 觸發條件偵測（上次、之前、繼續）          │
+│     │                                                      │
+│     ├──► FTS5 ──── 即時搜尋（1.4ms 平均）                  │
+│     │                                                      │
+│     ├──► Self-Improving ─── 修正模式分析                   │
+│     │                     └── 學習寫入 corrections.md       │
+│     │                                                      │
+│     └──► Action ──── 主動預測 + 回覆                        │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## 🔰 功能特色 | Features
 
-| 功能 Feature | 說明 Description |
-|--------------|-----------------|
-| 🔍 **全文搜尋** | 跨所有對話即時搜尋 |
-| 🔍 **Full-Text Search** | Instant search across all conversations |
-| 🤖 **LLM 摘要** | 自動生成你語言的摘要 |
-| 🤖 **LLM Summaries** | Auto-generated in your language |
-| 🌐 **多語言** | 支援繁體中文、簡體中文、英文、日文 |
-| 🌐 **Multi-Language** | zh-TW, zh-CN, en, ja |
-| 🧠 **自我改進** | 從修正中學習，追蹤模式 |
-| 🧠 **Self-Improving** | Learn from corrections, track patterns |
-| 🔄 **自動索引** | Cron 增量更新 |
-| 🔄 **Auto-Index** | Cron-based incremental updates |
-| ⚡ **頻率限制** | 每分鐘 30 次 |
-| ⚡ **Rate Limiting** | 30 calls/min |
-| 🛡️ **錯誤恢復** | 三層 fallback |
-| 🛡️ **Error Recovery** | 3-layer fallback |
-| 🔒 **安全** | 無硬編碼 Key，資料自動遮罩 |
-| 🔒 **Secure** | No hardcoded keys, data auto-masked |
-| 🔐 **雙步儲存** | Topic file → Index，崩潰安全 |
-| 🔐 **Two-Step Save** | Topic file → Index, crash-safe |
-| ⚙️ **相互排斥** | 主代理寫入時萃取跳過 |
-| ⚙️ **Mutual Exclusion** | Skip extraction when main agent writes |
+| 功能 | 說明 |
+|------|------|
+| **Proactive Engine** | 主動偵測「上次」「之前」等 trigger，自動搜尋歷史 |
+| **Full-Text Search** | SQLite FTS5，即時跨所有對話搜尋 |
+| **Self-Improving** | 從修正中學習，持續追蹤模式 |
+| **LLM Summaries** | 自動生成多語言摘要（繁中/簡中/英文/日文）|
+| **Three-Layer Integration** | Proactivity + FTS5 + Self-Improving 閉環 |
+| **Auto-Index** | Cron 增量更新，每 5 分鐘 |
+| **Rate Limiting** | 每分鐘 30 次（含 sliding window）|
+| **Error Recovery** | 三層 fallback 機制 |
+| **Two-Step Save** | Topic → Index，崩潰安全 |
+| **Mutual Exclusion** | 主代理寫入時萃取跳過 |
+| **MCP Server** | 可选的 stdio/HTTP MCP server（技術債）|
 
 ---
 
@@ -48,14 +52,15 @@
 
 ```bash
 # 1. 複製 | Clone
-git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/openclaw-pfsi.git ~/.openclaw/skills/pfsi
+cd ~/.openclaw/skills/pfsi
 
 # 2. 設定 | Configure
-cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
-nano ~/.openclaw/fts5.env  # 填入 MINIMAX_API_KEY | Add your MINIMAX_API_KEY
+cp config.env.example ~/.openclaw/fts5.env
+nano ~/.openclaw/fts5.env  # 填入 MINIMAX_API_KEY
 
-# 3. 安裝精靈 | Setup Wizard
-python3 ~/.openclaw/skills/fts5/setup.py
+# 3. 安裝 | Install
+python3 setup.py
 
 # 4. 重啟 | Restart
 openclaw gateway restart
@@ -63,151 +68,118 @@ openclaw gateway restart
 
 ---
 
-## 📦 包含模組 | What's Included
-
-### FTS5 核心 | FTS5 Core
-
-| 檔案 File | 功能 Purpose |
-|-----------|-------------|
-| `__init__.py` | 主 API | Main API: `search()`, `summarize()`, `get_stats()` |
-| `llm_summary.py` | LLM + 多語言 Prompt | LLM + multi-language prompts |
-| `rate_limiter.py` | 每分鐘 30 次 | 30 calls/min sliding window |
-| `error_handling.py` | 三層 Fallback | 3-layer fallback system |
-| `indexer.py` | 對話索引器 | Session indexer with state tracking |
-| `sensitive_filter.py` | API Key 遮罩 | API key / token masking |
-| `setup.py` | 互動式安裝精靈 | Interactive setup wizard |
-| `install.py` | Cron 鉤子安裝 | Cron hook installer |
-
-### Self-Improving 整合 | Self-Improving Integration
-
-| 檔案 File | 等級 Level | 功能 Purpose |
-|-----------|------------|--------------|
-| `context_predictor.py` | P1 | 分析文字 → 預測話題意圖（含相互排斥）| Analyze text → predict topics/intents (w/ mutual exclusion) |
-| `reindex.py` | P1 | 自動更新索引 | Auto-update `index.md` |
-| `exchange_engine.py` | P2 | 冷/熱層自動交換（雙步儲存）| Cold/Hot layer auto-exchange (Two-Step Save) |
-| `exchange-cron.sh` | P2 | Cron 鉤子（每天 3 AM）| Cron hook (3 AM daily) |
-| `fts5_integration.py` | P3 | 雙向同步（雙步儲存 + 主代理鎖）| Bidirectional sync (Two-Step Save + Main Agent Lock) |
-
-### 知識庫 | Knowledge Base
-
-| 檔案 File | 內容 Content |
-|-----------|-------------|
-| `domains/openclaw-fts5.md` | FTS5 架構與模式 |
-| `domains/patterns.md` | 壞味道註冊表 |
-| `domains/harness-engineering.md` | Harness Engineering 文章彙整 |
-| `domains/agentic-harness-patterns.md` | Claude Code 模式深度研究 |
-
----
-
 ## 💬 使用方式 | Usage
 
-### FTS5 搜尋 | FTS5 Search
+### 基本搜尋 | Basic Search
 
 ```python
 from skills.fts5 import search, summarize, get_stats
 
-# 搜尋 | Search
-results = search("FTS5", limit=5)
+# 搜尋對話歷史
+results = search("上次 OpenClaw", limit=5)
 
-# LLM 摘要 | LLM Summary
-result = summarize("上次討論的內容")
+# LLM 摘要
+result = summarize("MCP 伺服器", results)
 print(result['summary'])
 
-# 統計 | Stats
+# 資料庫統計
 print(get_stats())
 ```
 
-### 上下文預測 | Context Prediction
+### Proactive Integration Engine
 
 ```python
-from skills.fts5.self_improving.scripts.context_predictor import analyze_text
+from proactive_integration import run_proactive_check
 
-analysis = analyze_text("上次我們談的 FTS5")
-print(analysis['topics'])       # [{'topic': 'fts5', ...}]
-print(analysis['suggested_memory_load'])  # ['fts5:recent', 'domains/fts5']
+# 當用戶說「上次...」時自動觸發
+result = run_proactive_check("上次 OpenClaw")
+if result:
+    print(result)  # 主動回覆相關歷史
 ```
 
----
-
-## 🧠 層級規則 | Layer Rules
-
-| 層級 Layer | 位置 Location | 條件 Trigger |
-|------------|---------------|--------------|
-| **熱 Hot** | `memory.md` | 7 天內引用 | < 7 days referenced |
-| **溫 Warm** | `topics/` | 3+ 引用 | 3+ references |
-| **冷 Cold** | `archive/` | 30+ 天未引用 | 30+ days unreferenced |
-
-### 雙步儲存 invariant
-
-```
-Step 1: 寫入 topic file → topics/{id}.md
-Step 2: 更新 memory.md index
-
-崩潰時：index 一致（不指向不存在的檔案）
-孤立檔案：無害
-```
-
----
-
-## 📍 安裝位置優先權 | Installation Priority
-
-腳本自動偵測並使用**現有的** Self-Improving 安裝位置。
-
-Scripts automatically detect and use the **existing** Self-Improving installation.
-
-| 優先 Priority | 位置 Location | 情境 When |
-|---------------|--------------|-----------|
-| 1st | `~/self-improving/` | 已安裝過 | Already installed |
-| 2nd | `~/.openclaw/skills/fts5/self_improving/` | 全新安裝 | New installation |
-
----
-
-## ⚙️ Cron 自動化 | Cron Automation
-
-| 任務 Task | 頻率 Frequency | 指令 Command |
-|-----------|----------------|--------------|
-| FTS5 索引器 | 每 5 分鐘 | `*/5 * * * * $HOME/.openclaw/scripts/fts5-indexer.sh` |
-| Self-Improving 交換 | 每天 3 AM | `0 3 * * * ~/.openclaw/skills/fts5/self_improving/scripts/exchange-cron.sh` |
-
----
-
-## 🔧 設定 | Configuration
+### MCP Server（技術債）| MCP Server (Tech Debt)
 
 ```bash
-# 環境變數 | Environment variable
-export MINIMAX_API_KEY=sk-cp-your-key-here
+# Stdio 模式
+python3 mcp_server.py
 
-# 或設定檔 | Or config file
-echo "MINIMAX_API_KEY=sk-cp-your-key-here" > ~/.openclaw/fts5.env
+# HTTP 模式
+python3 mcp_http_server.py  # Port 18820
 ```
+
+---
+
+## 📦 模組結構 | Module Structure
+
+### 核心 | Core
+
+| 檔案 | 功能 |
+|------|------|
+| `__init__.py` | 主 API: `search()`, `summarize()`, `get_stats()` |
+| `proactive_integration.py` | 三位一體整合引擎 |
+| `llm_summary.py` | LLM + 多語言 Prompt |
+| `indexer.py` | 對話索引器（Checkpoint/Resume）|
+| `rate_limiter.py` | 30 calls/min sliding window |
+| `error_handling.py` | 三層 fallback |
+| `sensitive_filter.py` | 敏感資料遮罩 |
+| `mcp_server.py` | MCP Stdio Server（技術債）|
+| `mcp_http_server.py` | MCP HTTP Server（技術債）|
+
+### Self-Improving 整合 | Self-Improving Integration
+
+| 檔案 | 功能 |
+|------|------|
+| `context_predictor.py` | 話題預測 + 相互排斥 |
+| `exchange_engine.py` | 冷/熱層交換（雙步儲存）|
+| `fts5_integration.py` | 雙向同步 |
+
+---
+
+## 📊 層級規則 | Layer Rules
+
+| 層級 | 位置 | 條件 |
+|------|------|------|
+| **熱** | `memory.md` | 7 天內引用 |
+| **溫** | `topics/` | 3+ 引用 |
+| **冷** | `archive/` | 30+ 天未引用 |
 
 ---
 
 ## 🛡️ 安全 | Security
 
-- ✅ 無硬編碼 API Key | No hardcoded API keys
-- ✅ 使用者提供憑證 | User-provided credentials only
-- ✅ 敏感資料自動遮罩 | Sensitive data auto-masked
-- ✅ 私人設定檔（600 權限）| Private config (600 permissions)
+- ✅ 無硬編碼 API Key
+- ✅ 使用者提供憑證
+- ✅ 敏感資料自動遮罩
+- ✅ 私人設定檔（600 權限）
+
+---
+
+## ⚠️ 技術債 | Tech Debt
+
+| 項目 | 說明 | 狀態 |
+|------|------|------|
+| MCP Stdio | OpenClaw stdio transport 不穩定 | 已記錄 |
+| MCP HTTP | HTTP 版本已預備 | 待整合 |
+| Semantic Search | 需要 Honcho | 等 Docker |
 
 ---
 
 ## 📄 文件 | Documentation
 
-| 檔案 File | 語言 Language | 說明 Description |
-|-----------|---------------|-----------------|
-| `README.md` | 中文/English | **本頁 Main** |
-| `SKILL.md` | English | OpenClaw 技能定義 |
-| `CHANGELOG.md` | English | 版本記錄 |
+| 檔案 | 說明 |
+|------|------|
+| `README.md` | 本頁（中文/English）|
+| `SKILL.md` | OpenClaw 技能定義 |
+| `CHANGELOG.md` | 版本記錄 |
 
 ---
 
-## 📄 授權 | License
+## 授權 | License
 
 MIT License — 詳見 [LICENSE](LICENSE)
 
 ---
 
-**由 Ophelia Prime 製作 | Made by Ophelia Prime**
+**Made by Ophelia Prime ⚡**
 
-[GitHub](https://github.com/ZCrystalC33/fts5-openclaw-skill) · [回報問題](https://github.com/ZCrystalC33/fts5-openclaw-skill/issues)
+[GitHub](https://github.com/ZCrystalC33/openclaw-pfsi) · [Issues](https://github.com/ZCrystalC33/openclaw-pfsi/issues)
