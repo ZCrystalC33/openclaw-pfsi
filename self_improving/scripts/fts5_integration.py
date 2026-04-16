@@ -2,12 +2,19 @@
 """
 FTS5 ↔ Self-Improving Integration Module
 Bidirectional sync between conversation history and learning memory.
+
+Design Principles (from Agentic Harness Patterns):
+1. TWO-STEP SAVE: Log to FTS5 first, then update memory file
+2. MUTUAL EXCLUSION: Track when main agent writes to prevent extraction conflicts
 """
 
 import os
 import sys
+import fcntl
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict
+from contextmanager import contextmanager
 
 # Try to import FTS5
 FTS5_AVAILABLE = False
@@ -26,7 +33,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 # Paths - Support both original ~/self-improving/ and merged location
-# Priority: existing ~/self-improving/ > merged location
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).parent
@@ -45,10 +51,92 @@ CORRECTIONS_FILE = SELF_IMPROVING_DIR / "corrections.md"
 MEMORY_FILE = SELF_IMPROVING_DIR / "memory.md"
 FTS5_LOG = Path.home() / ".openclaw/fts5.log"
 
+# Lock file for mutual exclusion (shared with exchange_engine.py)
+LOCK_FILE = SELF_IMPROVING_DIR / ".main_agent.lock"
+
+
+# =============================================================================
+# MUTUAL EXCLUSION - Main Agent Lock
+# =============================================================================
+
+@contextmanager
+def main_agent_lock(timeout_seconds: int = 10):
+    """
+    Context manager for main agent write lock.
+    
+    When the main agent writes to memory, it acquires this lock
+    to prevent the extraction agent (exchange_engine) from running.
+    
+    Usage:
+        with main_agent_lock():
+            write_correction(...)
+            log_to_fts5(...)
+    """
+    lock_acquired = False
+    try:
+        with open(LOCK_FILE, 'w') as f:
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                lock_acquired = True
+                
+                # Write lock info
+                f.write(f"{datetime.now().isoformat()}|main_agent\n")
+                f.flush()
+                
+                yield True
+                
+            except BlockingIOError:
+                # Shouldn't happen for main agent, but handle gracefully
+                yield False
+            finally:
+                if lock_acquired:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    finally:
+        if lock_acquired and LOCK_FILE.exists():
+            try:
+                LOCK_FILE.unlink()
+            except:
+                pass
+
+
+def is_main_agent_active() -> bool:
+    """
+    Check if main agent is currently writing.
+    
+    Returns True if lock file exists and is recent (< 30 seconds).
+    """
+    if not LOCK_FILE.exists():
+        return False
+    
+    try:
+        mtime = datetime.fromtimestamp(LOCK_FILE.stat().st_mtime)
+        age = (datetime.now() - mtime).total_seconds()
+        
+        # If lock is less than 30 seconds old, main agent is active
+        if age < 30:
+            return True
+        else:
+            # Stale lock, clean it up
+            try:
+                LOCK_FILE.unlink()
+            except:
+                pass
+    except:
+        pass
+    
+    return False
+
+
+# =============================================================================
+# FTS5 LOGGING (Step 1 of Two-Step Save)
+# =============================================================================
 
 def log_to_fts5(event_type: str, content: str, metadata: Optional[Dict] = None):
     """
     Log an event to FTS5 for future search.
+    
+    This is STEP 1 of the two-step save process.
+    FTS5 is the permanent record; memory files are derived from it.
     
     Args:
         event_type: 'correction', 'preference', 'pattern', 'learning'
@@ -91,47 +179,96 @@ def log_to_fts5(event_type: str, content: str, metadata: Optional[Dict] = None):
         return False
 
 
+# =============================================================================
+# CORRECTIONS & PREFERENCES (with mutual exclusion)
+# =============================================================================
+
 def index_correction(correction_text: str, context: Optional[str] = None):
     """
     Index a correction from Self-Improving into FTS5.
     
     When user corrects something, this logs it so future FTS5 searches
     can find and reference it.
+    
+    Uses TWO-STEP SAVE:
+    1. Log to FTS5 (permanent record)
+    2. Update corrections.md (derived file)
+    
+    Uses MUTUAL EXCLUSION to prevent extraction conflicts.
     """
     content = correction_text
     if context:
         content += f"\nContext: {context}"
     
-    return log_to_fts5("correction", content, {
-        "source": "self-improving",
-        "indexed_at": datetime.now().isoformat()
-    })
+    # Acquire lock before writing (mutual exclusion)
+    with main_agent_lock():
+        # STEP 1: Log to FTS5 first (this is the authoritative record)
+        success = log_to_fts5("correction", content, {
+            "source": "self-improving",
+            "indexed_at": datetime.now().isoformat()
+        })
+        
+        # STEP 2: Update corrections.md (derived, not authoritative)
+        if success:
+            _append_correction(correction_text, context)
+        
+        return success
+
+
+def _append_correction(correction_text: str, context: Optional[str] = None):
+    """Append a correction to corrections.md file."""
+    try:
+        os.makedirs(SELF_IMPROVING_DIR, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d")
+        entry = f"\n- [{timestamp}] {correction_text}"
+        if context:
+            entry += f" | Context: {context[:100]}"
+        
+        with open(CORRECTIONS_FILE, 'a', encoding='utf-8') as f:
+            f.write(entry)
+    except Exception as e:
+        print(f"⚠️ Failed to append correction to file: {e}")
 
 
 def index_preference(preference_text: str, project: Optional[str] = None):
     """
     Index a user preference into FTS5.
+    
+    Uses TWO-STEP SAVE + MUTUAL EXCLUSION.
     """
     content = preference_text
     if project:
         content += f"\nProject: {project}"
     
-    return log_to_fts5("preference", content, {
-        "source": "self-improving",
-        "indexed_at": datetime.now().isoformat()
-    })
+    with main_agent_lock():
+        success = log_to_fts5("preference", content, {
+            "source": "self-improving",
+            "indexed_at": datetime.now().isoformat()
+        })
+        
+        return success
 
 
 def index_learning(learning_text: str, topic: str):
     """
     Index a learned pattern or knowledge into FTS5.
+    
+    Uses TWO-STEP SAVE + MUTUAL EXCLUSION.
     """
-    return log_to_fts5("learning", learning_text, {
-        "source": "self-improving",
-        "topic": topic,
-        "indexed_at": datetime.now().isoformat()
-    })
+    with main_agent_lock():
+        success = log_to_fts5("learning", learning_text, {
+            "source": "self-improving",
+            "topic": topic,
+            "indexed_at": datetime.now().isoformat()
+        })
+        
+        return success
 
+
+# =============================================================================
+# SEARCH FUNCTIONS
+# =============================================================================
 
 def search_corrections(query: str, limit: int = 5) -> List[Dict]:
     """
@@ -184,6 +321,10 @@ def get_fts5_context_for_topic(topic: str) -> Optional[str]:
     return None
 
 
+# =============================================================================
+# MEMORY SUGGESTIONS
+# =============================================================================
+
 def suggest_memory_for_query(query: str) -> List[str]:
     """
     Analyze a query and suggest which Self-Improving memories to load.
@@ -227,6 +368,10 @@ def suggest_memory_for_query(query: str) -> List[str]:
     return unique_suggestions
 
 
+# =============================================================================
+# SYNC & STATUS
+# =============================================================================
+
 def sync_self_improving_to_fts5():
     """
     Sync existing Self-Improving memories to FTS5.
@@ -249,7 +394,7 @@ def sync_self_improving_to_fts5():
                 if line.startswith('-'):
                     line = line[1:].strip()
                 if line and len(line) > 10:
-                    if index_correction(line):
+                    if log_to_fts5("correction", line, {"synced": True}):
                         synced += 1
         except Exception as e:
             print(f"❌ Failed to sync corrections: {e}")
@@ -265,9 +410,11 @@ def get_integration_status() -> Dict:
     return {
         "fts5_available": FTS5_AVAILABLE,
         "fts5_log_exists": os.path.exists(FTS5_LOG),
-        "corrections_file": CORRECTIONS_FILE,
-        "memory_file": MEMORY_FILE,
-        "self_improving_dir": SELF_IMPROVING_DIR
+        "corrections_file": str(CORRECTIONS_FILE),
+        "memory_file": str(MEMORY_FILE),
+        "self_improving_dir": str(SELF_IMPROVING_DIR),
+        "main_agent_active": is_main_agent_active(),
+        "lock_file_exists": LOCK_FILE.exists()
     }
 
 
@@ -277,12 +424,14 @@ if __name__ == "__main__":
     
     print("=" * 50)
     print("🔗 FTS5 ↔ Self-Improving Integration")
+    print("   [Two-Step Save + Mutual Exclusion]")
     print("=" * 50)
     print()
     
     status = get_integration_status()
     print(f"FTS5 Available: {status['fts5_available']}")
     print(f"FTS5 Log: {status['fts5_log_exists']}")
+    print(f"Main Agent Active: {status['main_agent_active']}")
     print()
     
     if len(sys.argv) > 1:

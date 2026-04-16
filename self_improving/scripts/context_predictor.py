@@ -2,6 +2,11 @@
 """
 Context Predictor for Self-Improving
 Analyzes recent conversation context to predict likely user needs.
+
+Design Principles (from Agentic Harness Patterns):
+1. Select: Just-in-time context loading, not eager
+2. Isolate: Don't pollute parent context with heavy memory loading
+3. Context-aware: Respect mutual exclusion when main agent is writing
 """
 
 # Paths - Support both original ~/self-improving/ and merged location
@@ -14,8 +19,6 @@ _MERGED_DIR = _SCRIPT_DIR.parent
 # Prefer existing installation
 if _ORIGINAL_DIR.exists():
     SELF_IMPROVING_DIR = _ORIGINAL_DIR
-elif (_MERGED_DIR / "memory.md").exists():
-    SELF_IMPROVING_DIR = _MERGED_DIR
 else:
     SELF_IMPROVING_DIR = _MERGED_DIR
 
@@ -26,6 +29,51 @@ import os
 import re
 import sys
 from typing import Dict, List, Optional
+
+# Lock file for mutual exclusion check
+LOCK_FILE = SELF_IMPROVING_DIR / ".main_agent.lock"
+
+
+# =============================================================================
+# MUTUAL EXCLUSION CHECK
+# =============================================================================
+
+def is_main_agent_writing() -> bool:
+    """
+    Check if main agent is currently writing to memory.
+    
+    If true, context predictor should avoid triggering memory operations
+    that might conflict with the main agent's write.
+    """
+    if not LOCK_FILE.exists():
+        return False
+    
+    try:
+        mtime = datetime.fromtimestamp(LOCK_FILE.stat().st_mtime)
+        age = (datetime.now() - mtime).total_seconds()
+        
+        # If lock is less than 30 seconds old, main agent is writing
+        if age < 30:
+            return True
+        else:
+            # Stale lock, clean up
+            try:
+                LOCK_FILE.unlink()
+            except:
+                pass
+    except:
+        pass
+    
+    return False
+
+
+# Import datetime for the check
+from datetime import datetime
+
+
+# =============================================================================
+# CONTEXT TRIGGERS
+# =============================================================================
 
 # Context trigger patterns
 CONTEXT_TRIGGERS = {
@@ -88,15 +136,29 @@ INTENT_PATTERNS = {
 }
 
 
+# =============================================================================
+# ANALYSIS FUNCTIONS
+# =============================================================================
+
 def analyze_text(text: str, include_fts5_context: bool = False) -> Dict:
     """
     Analyze text and return contextual predictions.
     
     Returns:
-        dict with keys: topics, intents, suggested_memory_load
+        dict with keys: topics, intents, suggested_memory_load, 
+                        should_defer (if main agent is writing)
     """
     if not text:
-        return {"topics": [], "intents": [], "suggested_memory_load": []}
+        return {
+            "topics": [],
+            "intents": [],
+            "suggested_memory_load": [],
+            "should_defer": False
+        }
+    
+    # MUTUAL EXCLUSION CHECK
+    # If main agent is writing, defer memory operations
+    main_agent_busy = is_main_agent_writing()
     
     text_lower = text.lower()
     
@@ -125,14 +187,10 @@ def analyze_text(text: str, include_fts5_context: bool = False) -> Dict:
     # Build memory load suggestion
     suggested_memory_load = []
     
-    # Try to import FTS5 integration
-    FTS5_INTEGRATION_AVAILABLE = False
-    try:
-        sys.path.insert(0, str(SCRIPTS_DIR))
-        import fts5_integration
-        FTS5_INTEGRATION_AVAILABLE = True
-    except (ImportError, ModuleNotFoundError):
-        pass
+    # If main agent is busy, mark as deferred
+    # Don't load heavy context during writes
+    if main_agent_busy:
+        suggested_memory_load.append("_deferred:await_main_agent")
     
     # If history intent, suggest FTS5
     if any(i["intent"] == "history" for i in detected_intents):
@@ -149,7 +207,8 @@ def analyze_text(text: str, include_fts5_context: bool = False) -> Dict:
     return {
         "topics": detected_topics,
         "intents": detected_intents,
-        "suggested_memory_load": suggested_memory_load
+        "suggested_memory_load": suggested_memory_load,
+        "should_defer": main_agent_busy
     }
 
 
@@ -164,6 +223,10 @@ def predict_next_action(current_context: str) -> Optional[str]:
         Suggested next action or None
     """
     analysis = analyze_text(current_context)
+    
+    # If main agent is writing, suggest waiting
+    if analysis["should_defer"]:
+        return "⏳ 主代理正在寫入記憶，建議等待後再執行記憶操作"
     
     # Simple rule-based predictions
     if not analysis["topics"] and not analysis["intents"]:
@@ -193,6 +256,31 @@ def get_memory_load_suggestions(text: str) -> List[str]:
     return analysis["suggested_memory_load"]
 
 
+def should_load_fts5_context(text: str) -> bool:
+    """
+    Check if FTS5 context should be loaded for this query.
+    
+    Uses just-in-time loading principle:
+    - Only load FTS5 context when explicitly needed
+    - Don't eagerly load expensive context
+    
+    Returns:
+        True if FTS5 context would help
+    """
+    analysis = analyze_text(text)
+    
+    # Don't load if deferred
+    if analysis["should_defer"]:
+        return False
+    
+    # Load for history recall or complex queries
+    history_intents = ["history", "explanation"]
+    return any(
+        i["intent"] in history_intents 
+        for i in analysis["intents"]
+    )
+
+
 def format_analysis_report(text: str) -> str:
     """
     Format analysis into a readable report.
@@ -201,6 +289,10 @@ def format_analysis_report(text: str) -> str:
     
     lines = ["📊 Context Analysis Report"]
     lines.append("=" * 40)
+    
+    # Note if deferred
+    if analysis["should_defer"]:
+        lines.append("\n⚠️ Main agent is writing - memory ops deferred")
     
     if analysis["topics"]:
         lines.append("\n🔍 Detected Topics:")
@@ -224,7 +316,10 @@ def format_analysis_report(text: str) -> str:
     return "\n".join(lines)
 
 
-# CLI for testing
+# =============================================================================
+# CLI FOR TESTING
+# =============================================================================
+
 if __name__ == "__main__":
     import sys
     
@@ -236,3 +331,4 @@ if __name__ == "__main__":
     print()
     print(f"Predicted next action: {predict_next_action(test_text)}")
     print(f"Suggested memory load: {get_memory_load_suggestions(test_text)}")
+    print(f"Should load FTS5 context: {should_load_fts5_context(test_text)}")
