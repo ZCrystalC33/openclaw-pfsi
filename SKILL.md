@@ -1,11 +1,11 @@
 ---
-name: FTS5 Full-Text Search + Self-Improving
-slug: fts5
-version: 1.3.0
-description: "🎓 SQLite FTS5 full-text search with LLM summarization + built-in Self-Improving intelligence for OpenClaw."
+name: OpenClaw PFSI
+slug: pfsi
+version: 2.0.0
+description: "⚡ Proactive Full-text Self-improving Integration — AI 助理的記憶引擎 for OpenClaw."
 metadata: {
   "clawdbot": {
-    "emoji": "🔍",
+    "emoji": "⚡",
     "requires": {
       "bins": ["sqlite3"],
       "python": ["json", "re", "datetime", "urllib"]

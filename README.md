@@ -1,8 +1,8 @@
-# FTS5 - OpenClaw 對話歷史搜尋系統
+# OpenClaw PFSI
 
-> 🤖 讓你的 AI 助理記住一切 — 內建 Self-Improving 智慧學習。
+> 🤖 Proactive Full-text Self-improving Integration — AI 助理的記憶引擎。
 > 
-> 🤖 Make your AI assistant remember everything — with built-in Self-Improving intelligence.
+> 🤖 Make your AI assistant proactive, contextual, and self-improving.
 
 [![授權：MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![版本](https://img.shields.io/badge/Version-1.5.0-green.svg)](CHANGELOG.md)
