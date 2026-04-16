@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.0] - 2026-04-17
+
+### 🎉 OpenClaw PFSI — Proactive Full-text Self-improving Integration
+
+名稱從 FTS5 升級為 PFSI，更準確反映三位一體架構。
+
+#### PFSI 架構重構
+- **Proactive Integration Engine** — 三位一體整合引擎
+  - `proactive_integration.py` — 搜 → 學 → 動 閉環
+  - 14 種 Trigger 關鍵詞偵測
+  - Topic 自動提取
+  - FTS5 即時搜尋（1.4ms 平均延遲）
+  - Self-Improving 學習寫入（canonical check）
+  - Proactivity State 持續更新
+
+#### 文件重寫
+- **README.md** — 全新 PFSI 架構圖 + 使用方式
+- **SKILL.md** — name → PFSI, version → 2.0.0, emoji → ⚡
+- **GitHub Repo** — renamed to `openclaw-pfsi`
+
+#### MCP Server MVP
+- **mcp_server.py** — Stdio MCP Server（技術債）
+- **mcp_http_server.py** — HTTP MCP Server（技術債）
+- 本地測試通過（3/3 responses correct）
+- OpenClaw MCP 整合 = 技術債（待修復）
+
+---
+
 ## [1.5.0] - 2026-04-17
 
 ### 🔧 Pattern 應用於 FTS5 核心
@@ -220,7 +248,9 @@ append_to_memory_index(topic_id, summary)
 
 | Version | Date | Status |
 |---------|------|--------|
-| 1.4.0 | 2026-04-16 | ✅ Current |
+| 2.0.0 | 2026-04-17 | ✅ Current |
+| 1.5.0 | 2026-04-17 | ✅ Previous |
+| 1.4.0 | 2026-04-16 | ✅ Previous |
 | 1.3.0 | 2026-04-16 | ✅ Previous |
 | 1.2.0 | 2026-04-16 | ✅ Previous |
 | 1.1.0 | 2026-04-15 | ✅ Previous |
@@ -246,17 +276,19 @@ append_to_memory_index(topic_id, summary)
 
 ---
 
-## Statistics (as of v1.4.0)
+## Statistics (as of v2.0.0)
 
-- **Files**: 17+
-- **Lines of Code**: ~4,500
-- **Dependencies**: Python stdlib only (urllib, sqlite3, json, re, fcntl)
+- **Files**: 20+
+- **Lines of Code**: ~5,500
+- **Dependencies**: Python stdlib only
 - **Supported Languages**: 4 (zh-TW, zh-CN, en, ja)
 - **Error Recovery Layers**: 3
-- **Linter Checks**: 7 (all passing)
+- **Linter Checks**: 8/8 (all passing)
 - **Self-Improving Scripts**: 5
-- **Design Patterns**: 6 (from Agentic Harness Patterns)
-- **Knowledge Domains**: 3 (openclaw-fts5, patterns, harness-engineering)
+- **Design Patterns**: 13 (Agentic Harness Patterns)
+- **Knowledge Domains**: 4 (openclaw-fts5, patterns, harness-engineering, agentic-harness)
+- **Proactive Triggers**: 14 patterns
+- **MCP Server**: Stdio + HTTP (MVP)
 
 ## Future Plans
 
