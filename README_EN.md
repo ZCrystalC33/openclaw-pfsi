@@ -31,7 +31,7 @@
 
 ```bash
 # 1. Clone
-git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
 # 2. Configure
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
@@ -78,7 +78,7 @@ print(f"Total messages indexed: {stats['total']}")
 
 ```bash
 # Install FTS5
-git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
 # Setup FTS5
 python3 ~/.openclaw/skills/fts5/setup.py
@@ -182,4 +182,4 @@ MIT License - See [LICENSE](./LICENSE)
 
 **Made with ❤️ by Ophelia Prime**
 
-[GitHub](https://github.com/kiwi760303/fts5-openclaw-skill) | [Report Bug](https://github.com/kiwi760303/fts5-openclaw-skill/issues) | [Request Feature](https://github.com/kiwi760303/fts5-openclaw-skill/issues)
+[GitHub](https://github.com/ZCrystalC33/fts5-openclaw-skill) | [Report Bug](https://github.com/ZCrystalC33/fts5-openclaw-skill/issues) | [Request Feature](https://github.com/ZCrystalC33/fts5-openclaw-skill/issues)

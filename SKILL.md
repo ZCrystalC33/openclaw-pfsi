@@ -46,7 +46,7 @@ metadata: {
 
 ```bash
 # Install FTS5
-git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
 # Configure API key
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
@@ -65,20 +65,12 @@ Install the **Full Stack** for a truly intelligent AI assistant:
 
 ```bash
 # FTS5 - Remember conversations
-git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
-
-# Self-Improving - Learn from corrections
-git clone https://github.com/kiwi760303/self-improving-openclaw.git ~/.openclaw/skills/self-improving
-
-# Proactivity - Act proactively
-git clone https://github.com/kiwi760303/proactivity-openclaw.git ~/.openclaw/skills/proactivity
+git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 ```
 
 | Skill | Purpose | Link |
 |-------|---------|------|
-| FTS5 | Remember WHAT you discussed | [GitHub](https://github.com/kiwi760303/fts5-openclaw-skill) |
-| Self-Improving | Learn WHAT you corrected | [GitHub](https://github.com/kiwi760303/self-improving-openclaw) |
-| Proactivity | Act on WHAT it knows | [GitHub](https://github.com/kiwi760303/proactivity-openclaw) |
+| **FTS5** | Remember WHAT you discussed | [GitHub](https://github.com/ZCrystalC33/fts5-openclaw-skill) |
 
 ## 📋 Installation with Cron Hook
 

@@ -31,7 +31,7 @@
 
 ```bash
 # 1. 複製
-git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
 # 2. 設定
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
@@ -78,7 +78,7 @@ print(f"已索引訊息數: {stats['total']}")
 
 ```bash
 # 安裝 FTS5
-git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
 # 設定 FTS5
 python3 ~/.openclaw/skills/fts5/setup.py
@@ -182,4 +182,4 @@ MIT License - 詳見 [LICENSE](./LICENSE)
 
 **由 Ophelia Prime 用 ❤️ 製作**
 
-[GitHub](https://github.com/kiwi760303/fts5-openclaw-skill) | [回報問題](https://github.com/kiwi760303/fts5-openclaw-skill/issues) | [請求功能](https://github.com/kiwi760303/fts5-openclaw-skill/issues)
+[GitHub](https://github.com/ZCrystalC33/fts5-openclaw-skill) | [回報問題](https://github.com/ZCrystalC33/fts5-openclaw-skill/issues) | [請求功能](https://github.com/ZCrystalC33/fts5-openclaw-skill/issues)
