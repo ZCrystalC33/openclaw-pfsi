@@ -4,6 +4,24 @@ Context Predictor for Self-Improving
 Analyzes recent conversation context to predict likely user needs.
 """
 
+# Paths - Support both original ~/self-improving/ and merged location
+from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).parent
+_ORIGINAL_DIR = Path.home() / "self-improving"
+_MERGED_DIR = _SCRIPT_DIR.parent
+
+# Prefer existing installation
+if _ORIGINAL_DIR.exists():
+    SELF_IMPROVING_DIR = _ORIGINAL_DIR
+elif (_MERGED_DIR / "memory.md").exists():
+    SELF_IMPROVING_DIR = _MERGED_DIR
+else:
+    SELF_IMPROVING_DIR = _MERGED_DIR
+
+SCRIPTS_DIR = SELF_IMPROVING_DIR / "scripts"
+
+# Standard imports
 import os
 import re
 import sys
@@ -110,7 +128,7 @@ def analyze_text(text: str, include_fts5_context: bool = False) -> Dict:
     # Try to import FTS5 integration
     FTS5_INTEGRATION_AVAILABLE = False
     try:
-        sys.path.insert(0, os.path.expanduser("~/self-improving/scripts"))
+        sys.path.insert(0, str(SCRIPTS_DIR))
         import fts5_integration
         FTS5_INTEGRATION_AVAILABLE = True
     except (ImportError, ModuleNotFoundError):

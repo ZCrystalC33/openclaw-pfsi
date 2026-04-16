@@ -25,11 +25,25 @@ except (ImportError, ModuleNotFoundError):
         pass
 
 
-# Paths
-SELF_IMPROVING_DIR = os.path.expanduser("~/self-improving")
-CORRECTIONS_FILE = os.path.expanduser("~/self-improving/corrections.md")
-MEMORY_FILE = os.path.expanduser("~/self-improving/memory.md")
-FTS5_LOG = os.path.expanduser("~/.openclaw/fts5.log")
+# Paths - Support both original ~/self-improving/ and merged location
+# Priority: existing ~/self-improving/ > merged location
+from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).parent
+_ORIGINAL_DIR = Path.home() / "self-improving"
+_MERGED_DIR = _SCRIPT_DIR.parent  # ~/.openclaw/skills/fts5/self_improving
+
+# Prefer existing installation (don't overwrite user's data)
+if _ORIGINAL_DIR.exists():
+    SELF_IMPROVING_DIR = _ORIGINAL_DIR
+elif (_MERGED_DIR / "memory.md").exists():
+    SELF_IMPROVING_DIR = _MERGED_DIR
+else:
+    SELF_IMPROVING_DIR = _MERGED_DIR
+
+CORRECTIONS_FILE = SELF_IMPROVING_DIR / "corrections.md"
+MEMORY_FILE = SELF_IMPROVING_DIR / "memory.md"
+FTS5_LOG = Path.home() / ".openclaw/fts5.log"
 
 
 def log_to_fts5(event_type: str, content: str, metadata: Optional[Dict] = None):
