@@ -59,6 +59,76 @@ except UnicodeDecodeError:
 # TODO: Refactor after getting user feedback
 ```
 
+### 6. Inline 狀態比較（代替 canonical check）
+```python
+# ❌ 錯誤
+if status == 'completed' or status == 'failed':
+    cleanup()
+
+# ✅ 正確（新增 terminal state 時，inline 會靜默分歧）
+is_terminal = lambda s: s in {'completed', 'failed', 'killed'}
+if is_terminal(status):
+    cleanup()
+```
+
+### 7. 不 memoize promise（並發 race）
+```python
+# ❌ 錯誤
+cache[key] = expensive_async_call()  # 可能並發執行多次
+
+# ✅ 正確
+if key not in in_flight:
+    in_flight[key] = expensive_async_call()
+result = await in_flight[key]
+```
+
+### 8. Eviction 沒有 notification gate
+```python
+# ❌ 錯誤
+set_terminal_state(work)
+evict(work)  # 可能在 parent 讀到結果前就驅逐了
+
+# ✅ 正確
+set_terminal_state(work)
+notify_parent(work)  # 確保 parent 收到才驅逐
+mark_eviction_ready(work)
+```
+
+### 9. Trust gate 不是全有或全無
+```python
+# ❌ 錯誤
+if workspace.untrusted:
+    skip_external_hooks()  # in-process 還是會執行
+
+# ✅ 正確
+if workspace.untrusted:
+    skip_all_hooks()  # 包括 in-process
+```
+
+### 10. 單一步驟儲存（破壞 consistency）
+```python
+# ❌ 錯誤
+memory_index.append(full_content)  # crash 時不一致
+
+# ✅ 正確（雙步驪存 invariant）
+write_topic_file(topic_id, content)
+append_to_index(topic_id, summary)
+```
+
+### 11. 在 async boundary 保持完整 snapshot
+```python
+# ❌ 錯誤
+old_state = work_unit_state  # 併發 terminal transition 會 clobber
+await disk_read()
+restore_state(old_state)  # clobbered!
+
+# ✅ 正確（只存需要的 fields）
+old_offset = work_unit.offset
+await disk_read()
+if work_unit.is_running:  # re-check after await
+    work_unit.offset = new_offset
+```
+
 ## 最佳實踐（Best Practices）
 
 ### 1. 路徑檢測

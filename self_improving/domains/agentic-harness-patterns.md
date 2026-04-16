@@ -1,57 +1,53 @@
-# Agentic Harness Patterns 研究報告
+# Agentic Harness Patterns 完整研究報告
 
 > 資料來源：https://github.com/keli-wen/agentic-harness-patterns-skill
 > 從 Claude Code 512,000 行原始碼萃取的生產級設計模式
+> 閱讀進度：13/13 ✅
 
 ---
 
-## 📋 六大設計模式總覽
+## 總覽：十大設計模式
 
 | Pattern | 解決問題 | 核心原則 |
 |---------|---------|---------|
-| **Memory** | 代理忘記一切 | 分層持久化、雙步儲存、相互排斥萃取 |
-| **Skills** | 每次都要重新解釋 | Lazy-loaded、預算約束發現 |
-| **Tools & Safety** | 工具強大但安全 | Fail-closed、per-call 并發 |
-| **Context Engineering** | 看到太多/太少/錯誤 | Select/Write/Compress/Isolate |
-| **Multi-agent** | 平行但不混亂 | Coordinator 必須綜合，不是委託 |
-| **Lifecycle** | Hooks + 背景任務 | 單一 dispatch、依賴排序 |
+| **Memory Persistence** | 代理忘記一切 | 分層持久化、雙步儲存、相互排斥萃取 |
+| **Skill Runtime** | 每次都要重新解釋 | Lazy-loaded、預算約束發現 |
+| **Tool & Safety** | 工具強大但安全 | Fail-closed、per-call 并發 |
+| **Select** | 看到太多/太少 | 三層漸進揭露、Memoization |
+| **Compress** | Context 太長 | Truncate + Recovery Pointer |
+| **Isolate** | 委託邊界汙染 | Zero-inheritance、單層fork、filesystem isolation |
+| **Agent Orchestration** | 多代理協調混亂 | Coordinator 必須綜合、深度有界 |
+| **Hook Lifecycle** | 擴展性鉤子失控 | 單一 dispatch、trust 全有全無、deny>ask>allow |
+| **Task Decomposition** | 長期工作管理 | Typed IDs、磁盤輸出、兩階段驅逐 |
+| **Bootstrap Sequence** | 初始化順序混亂 | 依賴排序、memoized 並發、trust 分割 |
 
 ---
 
-## 1. Memory（記憶模式）⭐ 與我們最相關
+## 1. Memory Persistence（記憶持久化）⭐
 
-### 核心原則
+### 問題
+代理每次 fresh start 都忘記一切，無法累积经验。
 
-```
-Golden Rule: 分離三種記憶
-
-Instruction Memory（人類編寫）
-├── 組織級 → 用戶級 → 專案級 → 本地級
-└── 穩定、版本控制
-
-Auto-Memory（代理寫入）
-├── 四種類型：user / feedback / project / reference
-├── 雙步儲存：topic file → index
-└── 有上限的 index（防止無限增長）
-
-Session Extraction（背景萃取）
-├── 在 session 結束時執行
-├── 與主代理相互排斥（同一 turn 不能同時寫）
-└── 需要沙箱限制
-```
-
-### 四層指令階層（Claude Code 為例）
+### 解決方案：四層指令階層 + 雙步儲存
 
 ```
 Priority 低 → 高：
+1. Organization (組織級)  → 全域共享設定
+2. User (用戶級)         → 個人偏好
+3. Project (專案級)      → 專案上下文
+4. Local (本地覆蓋)      → 永不進版控
 
-1. Organization (組織級)     → CLAUDE.md in managed location
-2. User (用戶級)           → ~/.claude/CLAUDE.md
-3. Project (專案級)        → ./CLAUDE.md, ./rules/
-4. Local (本地覆蓋)        → ./CLAUDE.local.md (永不進版控)
+重要：本地覆蓋永遠贏！
 ```
 
-**重要：本地覆蓋永遠贏！**
+### 四型 Auto-Memory
+
+| 類型 | 內容 | 範例 |
+|------|------|------|
+| `user` | 用戶身份、偏好 | "使用者喜歡用繁體中文" |
+| `feedback` | 行為修正 | "糾正：不要用 npm，要用 bun" |
+| `project` | 專案上下文 | "這個專案使用 TypeScript" |
+| `reference` | 穩定參考事實 | "API 文件在 /docs" |
 
 ### 雙步儲存 invariant
 
@@ -64,39 +60,27 @@ write_topic_file(topic_id, content)  # Step 1
 append_to_index(topic_id, summary)   # Step 2
 ```
 
-**為什麼？** 如果在兩個步驟之間崩潰：
-- index 保持一致（不會指向不存在的內容）
-- 只會產生孤立的 topic file（無害）
-
-### Auto-Memory 類型分類
-
-| 類型 | 內容 | 範例 |
-|------|------|------|
-| `user` | 用戶身份、偏好 | "使用者喜歡用繁體中文" |
-| `feedback` | 行為修正 | "糾正：不要用 npm，要用 bun" |
-| `project` | 專案上下文 | "這個專案使用 TypeScript" |
-| `reference` | 穩定參考事實 | "API 文件在 /docs" |
-
-**排除原則：** 不要儲存可從 codebase 推導的內容（會過期）
+**為什麼？** 如果在兩個步驟之間崩潰，index 保持一致，只會產生孤立的 topic file（無害）。
 
 ### Session Extraction 的相互排斥
 
 ```python
-# 如果主代理在這個 turn 寫入了記憶
+# 如果主代理在這個 turn 寫入了記憶，extractor 跳過
 if main_agent_wrote_memory(turn):
-    extractor.skip()  # 跳過這個 turn
+    extractor.skip()
     advance_cursor()
 else:
-    extractor.run()   # 執行萃取
+    extractor.run()
 ```
-
-**原因：** 防止兩個 writer 衝突
 
 ---
 
-## 2. Skills（技能模式）
+## 2. Skill Runtime（技能執行期）
 
-### 核心原則
+### 問題
+每次都要重新解釋指令，浪費 token。
+
+### 解決方案：Lazy Loading + 預算約束
 
 ```
 Discovery: 預算約束
@@ -107,10 +91,6 @@ Discovery: 預算約束
 Loading: Lazy
 ├── Idle token cost ≈ 0
 └── Activation 時才 full load
-
-Execution: 可選隔離
-├── Inline: 共享 context
-└── Forked: 獨立 token budget
 ```
 
 ### 觸發語言要放在前面
@@ -125,11 +105,11 @@ trigger: "python, pip, virtualenv"
 description: "A skill for Python development"
 ```
 
-**原因：** 目錄有字數上限，尾巴會被截斷
+**原因：** 目錄有字數上限，尾巴會被截斷。
 
 ---
 
-## 3. Tools & Safety（工具與安全）
+## 3. Tool & Safety（工具與安全）
 
 ### Fail-Closed 預設
 
@@ -144,28 +124,20 @@ description: "A skill for Python development"
 
 ```
 同一個工具對不同輸入有不同行為：
-
 tool.read("config.json")     → safe for concurrent
 tool.write("config.json")    → unsafe for concurrent
-tool.delete("config.json")  → unsafe for concurrent
 ```
 
-**重點：** 並發分類是針對每次呼叫，不是每個工具
+**重點：** 並發分類是針對每次呼叫，不是每個工具。
 
 ---
 
-## 4. Context Engineering（上下文工程）⭐ 與 FTS5 最相關
+## 4. Select（選擇性載入）⭐
 
-### 四軸框架
+### 問題
+看到太多/太少/錯誤的上下文。
 
-| 操作 | 作用 | 時機 |
-|------|------|------|
-| **Select** | Just-in-time loading | 需要的時候才載入 |
-| **Write** | 寫入持久化存儲 | 學習循環 |
-| **Compress** | 摘要舊內容 | session 太長時 |
-| **Isolate** | 隔離委託工作 | 防止污染父 context |
-
-### Select：三層漸進揭露
+### 三層漸進揭露
 
 ```
 Tier 1 (Always):      Metadata (~100 tokens) → 總是在 context
@@ -173,33 +145,34 @@ Tier 2 (Activation):   Instructions (<5000 tokens) → skill 啟動時
 Tier 3 (On-demand):   Resources (無上限) → 按需載入
 ```
 
-**關鍵：Discovery cost scales with catalog size, execution cost is constant per activated item**
-
-### Select 的 Memoization 模式
+### Memoization 要 memoize promise
 
 ```python
 # ❌ 錯誤：只 memoize 結果
 cache = {key: expensive_result}
 
 # ✅ 正確：memoize promise（防止並發 races）
-in_flight = {}  # promise 本身是 deduplication key
+in_flight = {}
 if key not in in_flight:
     in_flight[key] = expensive_async_call()
 result = await in_flight[key]
 ```
 
-### Select 的 Invalidation 原則
+### Invalidation 原則
 
 ```
 ❌ 不要用 timer 或 reactive subscriptions
 ✅ 在 mutation site 明確呼叫 invalidation
-
-原因：
-- Timer-based: 要嘛 serving stale data，要嘛 rebuild too often
-- Manual invalidation: 只在真正改變時 rebuild
 ```
 
-### Compress：三層機制
+---
+
+## 5. Compress（壓縮）⭐
+
+### 問題
+Session 太長時效能下降。
+
+### 三層機制
 
 | 機制 | 說明 |
 |------|------|
@@ -207,40 +180,61 @@ result = await in_flight[key]
 | **Reactive Compaction** | 當 fill ratio 達到門檻時觸發（不是定時）|
 | **Snapshot Labeling** | 所有快照都要標記"這是時間 T 的快照" |
 
-### Compress 的 Truncation 黃金法則
+### Truncation 黃金法則
 
 ```
+❌ 錯誤：只說 "output was truncated"
+✅ 正確："Run `cat filename` to see full output"
+```
+
 截斷時必須包含：
 1. 具體的工具名稱
 2. 具體的參數
 3. 明確說明這是截斷的
 
-❌ 錯誤：只說 "output was truncated"
-✅ 正確："Run `cat filename` to see full output"
-```
+---
 
-### Isolate：委託邊界
+## 6. Isolate（隔離）⭐⭐⭐
+
+### 問題
+委託工作時 shared state 造成碰撞：context 洩漏、檔案競爭、遞迴 fork 指數成本。
+
+### 核心原則
 
 ```
-Coordinator Pattern:
+Zero-inheritance is the safest default
 ├── Worker 從零 context 開始
 ├── 只有 explicit prompt 被繼承
 └── 不繼承父的完整 context
 
-Fork Pattern:
+Full-inheritance forks must be single-level
 ├── Child 繼承父的全部 context
 ├── 只能單層（不能遞迴 fork）
 └── 防止 context cost 指數增長
-
-Isolate 的前提：
-- Filesystem isolation (worktrees)
-- Path translation injection
-- 工具過濾
 ```
+
+### Filesystem Isolation
+
+```
+當 sub-agent 修改檔案時：
+1. 建立 isolated copy (worktree/temp/cow-clone)
+2. 注入 path translations
+3. 完工後透過 controlled integration point 合併
+```
+
+### 決策框架：Blast Radius
+
+| 隔離層級 | Worker 最多能破壞什麼 |
+|---------|---------------------|
+| Zero-inheritance | 只有自己的輸出 |
+| Full-inheritance fork | 與 parent state 不一致 |
+| Shared-filesystem | Parent 的 working directory |
+
+**永遠從最窄的邊界開始，確定需要時才拓寬。**
 
 ---
 
-## 5. Multi-agent（多代理協調）
+## 7. Agent Orchestration（代理協調）⭐
 
 ### 三種模式
 
@@ -261,15 +255,6 @@ Coordinator 必須综合理解，不是只委託
 → 研究結果 → 綜合 → 精確規格 → 派遣實現
 ```
 
-### 實現檢查清單
-
-```
-1. 定義階段工作流：研究 → 綜合 → 實現 → 驗證
-2. 每個 worker 的 prompt 必須是自包含文檔
-3. 過濾每個 worker 的工具集
-4. 決定 continue vs spawn 策略
-```
-
 ### 深度必須有界
 
 ```
@@ -277,152 +262,270 @@ Coordinator 必須综合理解，不是只委託
 ├── Fork children 不能 fork
 ├── Swarm peers 不能 spawn other peers
 └── 防止指數級 fan-out
-
-原因：unbounded depth produces exponential fan-out that is impossible to monitor, cancel, or reason about
 ```
 
 ---
 
-## 6. Lifecycle & Extensibility（生命週期）
+## 8. Hook Lifecycle（鉤子生命週期）⭐⭐⭐
 
-### Hook 的六種類型
+### 問題
+沒有 centralized hook lifecycle：trust enforcement 不一致、ordering 不確定、blocking 決策傳播混亂。
+
+### 核心原則
 
 ```
-pre-tool-execution
-post-tool-execution
-pre-prompt-submission
-post-prompt-submission
-agent-start
-agent-end
+All hooks flow through a single dispatch point
+├── 信任檢查
+├── Source 合併
+├── Type 路由
+└── 結果聚合
 ```
 
 ### Trust 是全有或全無
 
 ```python
+# 在任何 hook 觸發之前檢查一次
 if workspace.untrusted:
-    skip_all_hooks()  # 不是只跳過可疑的
+    skip_all_hooks()  # 不是只跳過可疑的，全部跳過
 ```
 
-### Task Eviction：兩階段
+### Multi-source Merge Priority
 
 ```
-Phase 1: 磁盤輸出在 terminal state 時 eager 清理
-Phase 2: 記憶體記錄在 parent 收到通知後 lazy 清理
+Priority 高 → 低：
+1. Persisted configuration (settings files)
+2. SDK-registered callbacks
+3. Session-scoped registrations
 
-重要：eviction 必須在 notification 之後，否則 race condition
+當 policy 限制時，整層排除而不是個別過濾。
 ```
 
-### Bootstrap 依賴排序
+### Exit Codes 語義
+
+| Exit Code | 語義 |
+|-----------|------|
+| 0 | 成功 |
+| 特定 blocking code | block + inject error message |
+| 其他非零 | warn but don't block |
+
+### Deny > Ask > Allow Precedence
 
 ```
-信任邊界是關鍵轉折點：
-- 安全敏感的子系統（telemetry, secret env vars）
-- 必須在信任建立之前不能激活
+當多個 hooks 返回衝突的 permission 決策：
+deny > ask > allow > passthrough
+
+單一 security-minded hook 可以否決所有 permissive hooks。
 ```
 
----
+### 六種 Hook 類型
 
-## 對 FTS5 的啟示
+| 類型 | 使用時機 |
+|------|---------|
+| `command` | Shell-level side effects |
+| `prompt` | Hook 本身需要 reasoning |
+| `agent` | Full sub-agent delegation |
+| `http` | External service integration |
+| `callback` | Full structured output control |
+| `function` | Lightweight boolean gate only |
 
-### 我們現有的
-
-| 組件 | 對應 Pattern |
-|------|-------------|
-| FTS5 DB | Memory（持久化）|
-| Self-Improving domains | Auto-Memory（領域知識）|
-| corrections.md | Feedback（修正日誌）|
-| exchange_engine.py | Session Extraction（自動分層）|
-
-### 我們欠缺的
-
-| Pattern | 我們沒有 | 建議 |
-|---------|---------|------|
-| Memory 分層 | 只有兩層（memory.md + domains/）| 參考四層結構 |
-| 雙步儲存 | 直接寫入 | 重構為 topic file → index |
-| 相互排斥萃取 | 無 | 加入檢查 |
-| Lazy-loaded Skills | 無 | 研究 OpenClaw skills 機制 |
-| Coordinator | 無 | 先專注單代理 |
-| Hooks | 無 | Lifecycle 前期規劃 |
-| Compress (Truncation + Recovery) | 無 | 考慮在 FTS5 搜尋結果應用 |
-
-### 立即可行動的改進
+### Session Hooks 是 Ephemeral
 
 ```
-1. 重構 exchange_engine.py：
-   - 加入雙步儲存 invariant
-   - 加入相互排斥檢查
-
-2. 考慮 memory.md 的雙層結構：
-   - Layer 1: memory.md（精簡 index）
-   - Layer 2: domains/*.md（詳細內容）
-
-3. 加入斷言和驗證：
-   - INDEX_IS_CONSISTENT
-   - MUTUAL_EXCLUSION_CHECK
-
-4. 考慮在搜尋結果應用 Compression 模式：
-   - 大結果截斷 + Recovery Pointer
-   - Snapshot Labeling
+Hooks 綁定到特定 session ID，session 結束時自動清理。
+不寫入持久化設定。
+Parent session 的 hooks 不會在 sub-agent session 觸發。
 ```
 
 ---
 
-## Gotchas（常見陷阱）
+## 9. Task Decomposition（任務分解）
 
-| # | 陷阱 | 說明 |
-|---|------|------|
-| 1 | Index truncation 是靜默的 | 達到上限時才警告 |
-| 2 | Priority ordering 是反直覺的 | 本地覆蓋永遠贏 |
-| 3 | 萃取時機造成 race window | 需要 mutual exclusion |
-| 4 | 可推導內容不該進記憶 | 會浪費空間且過期 |
-| 5 | 記憶不用於 session 內狀態 | session state 應分開處理 |
-| 6 | Fork children 不能 fork | 設計時就要規劃好深度 |
-| 7 | 驗證 worker 必須從零開始 | 否則會有假設盲點 |
-| 8 | Truncation 必須有 recovery pointer | 否則是死路 |
-| 9 | Snapshot labeling 防止過期推理 | git status 等必須標記時間點 |
-| 10 | Tool filtering 有多層 | 不同 agent type 有不同限制 |
+### 問題
+並發工作造成 shared state 碰撞、輸出腐敗、無法追蹤完成狀態。
+
+### 核心原則
+
+```
+Every work unit gets a typed identity
+├── Prefix encodes work type (agent/shell/remote/teammate)
+├── Collision-resistant random suffix
+└── ~2.8 trillion combinations per prefix
+```
+
+### State Machine
+
+```
+States: pending → running → completed/failed/killed
+Terminal states are permanent。
+用 canonical check function 而不是 inline 比較。
+```
+
+### 磁盤輸出 + 偏移量
+
+```
+記憶體只存 read offset。
+輸出寫到 per-work-unit 檔案。
+poll 時讀取 delta 並 atomically advance offset。
+→ 記憶體佔用恆定，與工作時長無關
+```
+
+### 兩階段 Eviction
+
+```
+Phase 1 (Eager):  Terminal state 時磁盤檔案刪除
+Phase 2 (Lazy):   Parent 收到通知後記憶體記錄才刪除
+
+通知閘門是關鍵：否則 race condition。
+```
 
 ---
 
-## Claude Code 具體實現細節
+## 10. Bootstrap Sequence（引導序列）
 
-### Memory
-- 四層指令階層（ORG → USER → PROJECT → LOCAL）
-- 四型 Auto-Memory（user/feedback/project/reference）
-- Index cap: 200 lines, 25,000 bytes
-- Session extraction: 5 turn cap, mutual exclusion
+### 問題
+安全關鍵初始化步驟執行順序錯誤：TLS 在第一個連接後才載入、proxy 在第一個 TCP 連接後才配置、trust-gated 子系統在同意之前就激活。
 
-### Skills
-- Discovery budget: ~1% context window
-- Per-entry cap: ~250 characters
-- Trigger language front-loaded
-- Lazy body loading on activation
+### 四層初始化順序
 
-### Context Engineering
-- Fill-ratio monitor triggers compaction at ~80%
-- Git status: 2000-char threshold with recovery pointer
-- Variable-length blocks all have hard caps
-- Snapshot labeling with timestamp
+```
+1. Config parsing（最先）
+2. Safe env vars（無 secrets）
+3. TLS CA certificates（任何網絡連接之前）
+4. Graceful shutdown registration
+5. mTLS configuration
+6. Global HTTP agent
+7. API preconnection
+```
 
-### Multi-agent
-- 三種模式 mutual exclusion（同時間只能一種）
-- Coordinator: phased workflow
-- Fork: single-level, cache-aligned shared prefix
-- Swarm: flat roster, shared task list
+### Trust Boundary 是關鍵轉折點
+
+```
+安全敏感的子系統（telemetry, secret env vars）
+必須在 trust 建立之後才能激活。
+```
+
+### Memoized Init
+
+```python
+# 併發 callers 共享同一個 promise，不會 double-init
+init_promise = memoized_async_init()
+# 而不是：
+if not initialized:
+    initialize()  # 可能並發執行兩次
+```
+
+### Trivial Commands Fast-path
+
+```
+在任何 dynamic import 之前檢查：
+version, help, schema dump → 立即返回，零模組載入
+```
+
+### Cleanup 在 Init 註冊
+
+```
+所有 cleanup handlers 在初始化時註冊，不是分散在 usage sites。
+確保所有 exit paths 都會執行清理。
+```
+
+---
+
+## 跨模式：共同主題
+
+### 1. 枚舉勝過魔法
+```
+Typed IDs > string IDs
+State machine > ad-hoc status
+Canonical check function > inline comparisons
+```
+
+### 2. 兩階段勝過單階段
+```
+雙步儲存：topic file → index
+兩階段 eviction：磁盤 → 記憶體
+Bootstrap：config → trust → subsystems
+```
+
+### 3. 窄邊界是預設
+```
+Zero-inheritance > Full-inheritance
+Local cleanup > Global GC
+Fail-closed > Fail-open
+```
+
+### 4. 明確勝過隱式
+```
+Path translations must cover ALL file-operation tools
+Memoize promises, not results
+Trust is all-or-nothing, not gradual
+```
+
+---
+
+## 對實際系統的啟示
+
+### 設計檢查清單
+
+```
+□ 所有初始化步驟有明確的依賴順序嗎？
+□ 並發 callers 會不會造成 double-init？
+□ 環境變數有沒有 security implications？
+□ Sub-agents 的 blast radius 受限嗎？
+□ Hooks 有沒有 single dispatch point？
+□ 長期工作有沒有 disk-backed output？
+□ Eviction 有沒有 notification gate？
+□ Cleanup handlers 在 init 註冊了嗎？
+□ Local 覆蓋能勝過 organization 設定嗎？
+□ 雙步儲存 invariant 成立了嗎？
+```
+
+---
+
+## Gotchas 快速參考
+
+| Pattern | Trap |
+|---------|------|
+| Memory | Index truncation is silent |
+| Memory | Local overrides always win |
+| Memory | Extraction timing creates race window |
+| Memory | Don't store derivable content |
+| Skills | Trigger language must be front-loaded |
+| Select | Memoize promises, not results |
+| Select | Invalidate at mutation site |
+| Compress | Truncation needs recovery pointer |
+| Isolate | Recursive forks = exponential cost |
+| Isolate | Path translations must cover ALL tools |
+| Isolate | Zero-inheritance prompts must be self-contained |
+| Isolate | Merging isolated agents can conflict |
+| Orchestration | Fork children cannot fork |
+| Hooks | Trust gate blocks ALL hook types |
+| Hooks | Missing script = same exit as intentional block |
+| Hooks | Policy-restricted modes drop session hooks silently |
+| Task | Don't evict before parent is notified |
+| Task | Retained work units are never auto-evicted |
+| Task | Update functions must not mutate existing state |
+| Bootstrap | Memoization hides retry failures |
+| Bootstrap | TLS cert store cached at boot |
 
 ---
 
 ## 參考文檔
 
 - [Agentic Harness Patterns Repo](https://github.com/keli-wen/agentic-harness-patterns-skill)
-- [Memory Persistence Pattern](references/memory-persistence-pattern.md)
-- [Skill Runtime Pattern](references/skill-runtime-pattern.md)
-- [Context Engineering Pattern](references/context-engineering-pattern.md)
-  - [Select Pattern](references/context-engineering/select-pattern.md)
-  - [Compress Pattern](references/context-engineering/compress-pattern.md)
-  - [Isolate Pattern](references/context-engineering/isolate-pattern.md)
-- [Agent Orchestration Pattern](references/agent-orchestration-pattern.md)
+- [Memory Persistence Pattern](references/memory-persistence-pattern.md) ✅
+- [Skill Runtime Pattern](references/skill-runtime-pattern.md) ✅
+- [Tool Registry Pattern](references/tool-registry-pattern.md) ✅
+- [Permission Gate Pattern](references/permission-gate-pattern.md) ✅
+- [Context Engineering Pattern](references/context-engineering-pattern.md) ✅
+  - [Select Pattern](references/context-engineing/select-pattern.md) ✅
+  - [Compress Pattern](references/context-engineing/compress-pattern.md) ✅
+  - [Isolate Pattern](references/context-engineering/isolate-pattern.md) ✅
+- [Agent Orchestration Pattern](references/agent-orchestration-pattern.md) ✅
+- [Hook Lifecycle Pattern](references/hook-lifecycle-pattern.md) ✅
+- [Task Decomposition Pattern](references/task-decomposition-pattern.md) ✅
+- [Bootstrap Sequence Pattern](references/bootstrap-sequence-pattern.md) ✅
+- [Isolate Pattern (context-engineering)](references/context-engineering/isolate-pattern.md) ✅
 
 ---
 
-*研究日期：2026-04-16*
+*研究日期：2026-04-16 | 閱讀進度：13/13 ✅*
