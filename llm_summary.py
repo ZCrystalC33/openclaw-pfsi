@@ -64,7 +64,7 @@ def _get_api_key() -> str:
 
 
 # Rate limiting
-MAX_CALLS_PER_MINUTE = 10
+MAX_CALLS_PER_MINUTE = 30
 _rate_limiter_history: List[float] = []
 
 

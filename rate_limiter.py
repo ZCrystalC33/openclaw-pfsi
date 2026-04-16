@@ -8,7 +8,7 @@ from typing import Dict, List
 from collections import deque
 
 # Configuration
-MAX_CALLS_PER_MINUTE = 10
+MAX_CALLS_PER_MINUTE = 30
 WINDOW_SECONDS = 60
 
 # In-memory tracking (per-process)
