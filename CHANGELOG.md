@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.0] - 2026-04-17
+
+### 🔧 Pattern 應用於 FTS5 核心
+
+基於 13 個 Agentic Harness 設計模式重構核心程式碼。
+
+#### 兩階段驅逐 (Two-Phase Eviction)
+- **indexer.py**: 狀態寫入先到 `.tmp`，再 atomic rename
+- **目的**: 防止崩潰時產生 partial state
+
+#### Checkpoint/Resume
+- **indexer.py**: 每 100 訊息儲存一次 checkpoint
+- **支援**: 大規模 import 中斷後從 last checkpoint 繼續
+
+#### Typed IDs
+- **indexer.py**: `SESSION_TYPE_PREFIX="session:"`, `INDEX_TYPE_PREFIX="index:"`
+- **目的**: 明確區分 ID 類型，防止衝突
+
+#### Exponential Backoff
+- **indexer.py**: `with_exponential_backoff` decorator
+- **llm_summary.py**: `_exponential_backoff(attempt, error_type)`
+- **參數**: 2s → 4s → 8s，cap 60s
+
+#### Bootstrap Sequence
+- **__init__.py**: `_bootstrap_load_api_key()` 有序初始化
+- **順序**: Environment → fts5.env → config.json
+
+#### Canonical Check
+- **__init__.py**: `_contains_sensitive()` 回傳 `Tuple[bool, List[str]]`
+- **單次掃描**: 避免多次 regex 匹配
+
+#### Truncation + Recovery Pointer
+- **__init__.py**: `_truncate_with_recovery(content, limit, operation)`
+- **格式**: `...<truncated — recovery: search() with higher limit>`
+
+#### Linter 強化
+- **linter.py**: 新增第 8 項檢查 `Agentic Harness Patterns`
+- **8/8 checks passing**
+
+---
+
 ## [1.4.0] - 2026-04-16
 
 ### 🎉 Agentic Harness Patterns 重構

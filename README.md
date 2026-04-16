@@ -5,7 +5,7 @@
 > 🤖 Make your AI assistant remember everything — with built-in Self-Improving intelligence.
 
 [![授權：MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![版本](https://img.shields.io/badge/Version-1.4.0-green.svg)](CHANGELOG.md)
+[![版本](https://img.shields.io/badge/Version-1.5.0-green.svg)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
 
 ---
