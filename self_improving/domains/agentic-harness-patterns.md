@@ -6,7 +6,7 @@
 
 ---
 
-## 總覽：十大設計模式
+## 總覽：十一大設計模式
 
 | Pattern | 解決問題 | 核心原則 |
 |---------|---------|---------|
@@ -20,6 +20,7 @@
 | **Hook Lifecycle** | 擴展性鉤子失控 | 單一 dispatch、trust 全有全無、deny>ask>allow |
 | **Task Decomposition** | 長期工作管理 | Typed IDs、磁盤輸出、兩階段驅逐 |
 | **Bootstrap Sequence** | 初始化順序混亂 | 依賴排序、memoized 並發、trust 分割 |
+| **Multi-Agent Research** | 從原型到產品 | 評估策略、工程化挑戰、協作哲學 |
 
 ---
 
@@ -430,6 +431,122 @@ version, help, schema dump → 立即返回，零模組載入
 
 ---
 
+## 11. Anthropic Multi-Agent Research（多智能體研究系統）⭐⭐⭐
+
+> 資料來源：Anthropic 《How we built our multi-agent research system》
+> + keli-wen 《Multi-Agent System，一篇就够了》解讀
+
+### 核心發現
+
+```
+Claude Opus 4 (主) + Sonnet 4 (子) 多智能體系統
+比單一 Opus 4 高出 90.2%
+
+BrowseComp 評估：Token 使用量解釋 80% 的性能差異
+```
+
+### Why Multi-Agent：三大理由
+
+| 理由 | 說明 |
+|------|------|
+| **非線性與湧現** | 單智能體有「隧道視野」，多智能體有「上帝視角」 |
+| **Inference Compute Scaling** | 多智能體幾乎無上限的 token 容量 |
+| **搜索即壓縮** | 「搜索即智能，從龐大語料庫中提取洞見」— Ilya |
+
+**搜索即壓縮的本質：**
+```
+Sub-agents = 智能過濾器
+↓ 消化大量原始資訊
+↓ 提煉壓縮後的洞見（most important tokens）
+Lead Agent 專注戰略規劃、邏輯推理、綜合決策
+```
+
+### Anthropic Research 架構
+
+```
+User Query
+    ↓
+Lead Researcher（規劃 + 記憶）+ Interleaved Thinking
+    ↓ 委派（並行）
+Subagents（各自獨立探索）
+    ↓ 壓縮結果
+Lead Researcher（綜合判斷）
+    ↓ 是否繼續探索
+CitationAgent（引用 + 輸出）
+```
+
+**Interleaved Thinking：** 在兩次工具呼叫之間插入思考步驟，評估上一步結果品質、識別資訊差距、動態調整下一步行動。
+
+### 八條最佳實踐
+
+#### 管理層面（主智能體）
+
+| 原則 | 說明 |
+|------|------|
+| **有效授權** | Teach the orchestrator how to delegate。為 Sub-agent 提供明確的目標、格式、工具、邊界。避免模糊指令導致重複工作。 |
+| **資源分配** | Scale effort to query complexity。簡單查詢用 1 個 agent + 3-10 次工具呼叫；複雜研究用 10+ subagents。 |
+
+#### 執行層面（子智能體）
+
+| 原則 | 說明 |
+|------|------|
+| **先廣後窄** | Start wide, then narrow down。模仿人類專家研究：先探索整體概况，再深入具體細節。避免默認過長、過於具體的查詢。 |
+| **引導思考過程** | Guide the thinking process。使用擴展思考為智能體提供「草稿紙」，引入 Interleaved Thinking 動態調整。 |
+| **並行工具呼叫** | Parallel tool calling。兩種並行化：(1) 主智能體並行啟動 3-5 個子智能體；(2) 子智能體並行使用 3+ 工具。複雜查詢研究時間減少 **90%**。 |
+
+#### 細節層面（系統構建）
+
+| 原則 | 說明 |
+|------|------|
+| **像智能體一樣思考** | Think like your agents。逐步觀察智能體工作，發現它在哪個環節出問題（過早停止、過於冗長搜索、選錯工具）。 |
+| **工具設計至關重要** | Tool design and selection are critical。糟糕的工具描述會讓智能體走上完全錯誤的道路。明確的啟發式規則：先檢查所有可用工具、偏好專用工具而非通用工具。 |
+| **賦予自我進化能力** | Let agents improve themselves。給定 Prompt 和失敗場景，模型能診斷失敗原因並提出改進建議。 |
+
+### Prompt 啟示錄
+
+```
+核心原則：啟發式 > Hardcode
+
+❌ 錯誤：將步驟 hardcode 成 if-else
+✅ 正確：灌輸良好的啟發式方法（如何分解問題、如何解決）
+
+複雜查詢的本質是動態的，無法用固定流程圖規劃所有步驟。
+```
+
+### 原型 → 產品：兩大挑戰
+
+#### 評估（Evaluation）
+
+```
+不要等大型評估集才開始，立即用小樣本（~20 queries）開始。
+任何 prompt 調整可能將成功率從 30% 提高到 80%。
+
+LLM 作為評估者：事實準確性、引用準確性、完整性、來源質量、工具效率。
+單一 LLM prompt 輸出一個評分結果，與人類判斷最接近。
+
+必要時人工介入（如發現智能體傾向選擇 SEO 優化內容而非權威來源）。
+```
+
+#### 工程化（Engineering）
+
+| 挑戰 | 對策 |
+|------|------|
+| **Stateful & Errors** | 斷點恢復系統、結合模型智能（告知工具失效）+ 工程確定性（重試邏輯、檢查點）|
+| **Debugging** | 全鏈路追蹤（Full Production Tracing）：記錄每一步決策、工具呼叫、返回結果 |
+| **Deployment** | 彩虹部署（Rainbow Deployments）：新舊版本並行，逐步切換流量 |
+| **Bottlenecks** | 異步執行（未來方向）：當前同步模式被最慢的子智能體拖累 |
+
+### 與 Agentic Harness Patterns 的對應
+
+| Anthropic 概念 | Harness Pattern |
+|---------------|----------------|
+| 壓縮後提交 | Coordinator 必須綜合，不是委託 |
+| Sub-agent 獨立上下文 | Isolate Pattern |
+| Interleaved Thinking | Hook Lifecycle (pre/post tool hooks) |
+| 斷點恢復 | Task Decomposition (disk-backed output, two-phase eviction) |
+| 全鏈路追蹤 | Hook Lifecycle (logging hooks) |
+| 資源分配 | Task Decomposition (typed IDs, effort scaling) |
+
 ## 跨模式：共同主題
 
 ### 1. 枚舉勝過魔法
@@ -525,7 +642,9 @@ Trust is all-or-nothing, not gradual
 - [Task Decomposition Pattern](references/task-decomposition-pattern.md) ✅
 - [Bootstrap Sequence Pattern](references/bootstrap-sequence-pattern.md) ✅
 - [Isolate Pattern (context-engineering)](references/context-engineering/isolate-pattern.md) ✅
+- [Anthropic Multi-Agent Research System](https://www.anthropic.com/engineering/built-multi-agent-research-system) ✅
+- [Multi-Agent System 解讀（keli-wen）](https://keli-wen.github.io/One-Poem-Suffices/one-poem-suffices/multi-agent-system/) ✅
 
 ---
 
-*研究日期：2026-04-16 | 閱讀進度：13/13 ✅*
+*研究日期：2026-04-16 | 閱讀進度：13/13 + Anthropic Multi-Agent ✅*
