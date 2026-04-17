@@ -19,6 +19,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Self-Improving 學習寫入（canonical check）
   - Proactivity State 持續更新
 
+#### 防衝突機制（Conflict Prevention）
+- **install.py** — 新增完整衝突偵測
+  - `check_existing_self_improving()`
+  - `check_existing_proactivity()`
+  - `check_conflicts()` — 回傳所有衝突狀態
+  - `report_conflicts()` — 互動式衝突報告
+  - `setup_proactivity_integration()` — Proactivity 整合
+- **Proactive Integration** — 路徑自動偵測（existing > merged）
+
+#### API Key 標準化
+- **新標準位置**：`~/.openclaw/credentials/minimax.key`
+- **Bootstrap 優先順序**：
+  1. 環境變數 `MINIMAX_API_KEY`
+  2. `~/.openclaw/credentials/minimax.key` （推薦）
+  3. `~/.openclaw/fts5.env` （legacy）
+  4. `~/.openclaw/config.json`
+- **config.env.example** — 更新為新標準位置文件
+
+#### Bug Fix
+- **llm_summary.py** — 修正 `from error_handling` → `from skills.fts5.error_handling`
+
 #### 文件重寫
 - **README.md** — 全新 PFSI 架構圖 + 使用方式
 - **SKILL.md** — name → PFSI, version → 2.0.0, emoji → ⚡

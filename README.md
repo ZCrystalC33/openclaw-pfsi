@@ -44,7 +44,7 @@
 | **Error Recovery** | 三層 fallback 機制 |
 | **Two-Step Save** | Topic → Index，崩潰安全 |
 | **Mutual Exclusion** | 主代理寫入時萃取跳過 |
-| **MCP Server** | 可选的 stdio/HTTP MCP server（技術債）|
+| **MCP Server** | 可選的 stdio/HTTP MCP server（技術債）|
 
 ---
 
@@ -52,24 +52,15 @@
 
 ```bash
 # 1. 複製 | Clone
-git clone https://github.com/ZCrystalC33/openclaw-pfsi.git ~/.openclaw/skills/pfsi
-cd ~/.openclaw/skills/pfsi
+git clone https://github.com/ZCrystalC33/openclaw-pfsi.git ~/.openclaw/skills/fts5
+cd ~/.openclaw/skills/fts5
 
-# 2. 設定 | Configure
+# 2. 設定 API Key
 
-**Standard Location (Recommended):**
-```bash
+# 標準位置（推薦）
 mkdir -p ~/.openclaw/credentials
-# 將您的 API Key 寫入標準位置
 echo "sk-cp-your-key" > ~/.openclaw/credentials/minimax.key
 chmod 600 ~/.openclaw/credentials/minimax.key
-```
-
-**Legacy Location (Alternative):**
-```bash
-cp config.env.example ~/.openclaw/fts5.env
-nano ~/.openclaw/fts5.env  # 填入 MINIMAX_API_KEY
-```
 
 # 3. 安裝 | Install
 python3 setup.py
@@ -101,7 +92,7 @@ print(get_stats())
 ### Proactive Integration Engine
 
 ```python
-from proactive_integration import run_proactive_check
+from skills.fts5.proactive_integration import run_proactive_check
 
 # 當用戶說「上次...」時自動觸發
 result = run_proactive_check("上次 OpenClaw")
@@ -137,6 +128,14 @@ python3 mcp_http_server.py  # Port 18820
 | `mcp_server.py` | MCP Stdio Server（技術債）|
 | `mcp_http_server.py` | MCP HTTP Server（技術債）|
 
+### 安裝腳本 | Install Scripts
+
+| 檔案 | 功能 |
+|------|------|
+| `setup.py` | 互動式安裝精靈 |
+| `install.py` | Cron + 整合安裝（含防衝突機制）|
+| `config.env.example` | 設定檔範例 |
+
 ### Self-Improving 整合 | Self-Improving Integration
 
 | 檔案 | 功能 |
@@ -160,7 +159,7 @@ python3 mcp_http_server.py  # Port 18820
 ## 🛡️ 安全 | Security
 
 - ✅ 無硬編碼 API Key
-- ✅ 使用者提供憑證
+- ✅ 使用者提供憑證（標準位置：`~/.openclaw/credentials/minimax.key`）
 - ✅ 敏感資料自動遮罩
 - ✅ 私人設定檔（600 權限）
 
